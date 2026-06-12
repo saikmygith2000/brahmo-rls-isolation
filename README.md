@@ -1,329 +1,91 @@
-# BRAHMO RLS Isolation - Complete Project
+# BRAHMO RLS Isolation
 
-A production-quality demonstration platform showcasing PostgreSQL Row Level Security (RLS) as the foundation for database-level access control.
+BRAHMO RLS Isolation is a full-stack demonstration of PostgreSQL Row Level Security (RLS). It shows how the same SQL query can return different rows for different users because access control is enforced inside the database.
 
-## Project Overview
+This is not a generic CRUD app. The project is built around two security ideas:
 
-**BRAHMO RLS** is **NOT** a CRUD application. It's a security demonstration that proves:
-
-1. **Same SQL query + Different JWT claims = Different results**
-2. **Bypassing the application DOES NOT bypass security**
-
-## Project Structure
-
+```text
+Same SQL query + different user claims = different results
+Bypassing application UI does not bypass database-level RLS
 ```
+
+## What This Project Contains
+
+```text
 brahmo-rls-isolation/
-├── backend/                          # FastAPI backend
-│   ├── app/
-│   │   ├── main.py                   # FastAPI application
-│   │   ├── api/
-│   │   │   ├── users.py              # User endpoints
-│   │   │   └── queries.py            # Query execution endpoints
-│   │   ├── services/
-│   │   │   ├── user_service.py       # User operations
-│   │   │   └── query_service.py      # Query execution with RLS
-│   │   ├── schemas/
-│   │   │   └── models.py             # Pydantic schemas
-│   │   └── database/
-│   │       └── connection.py         # Database connection pool
-│   ├── migrations/
-│   │   ├── 001_create_user_profiles.sql       # User table
-│   │   ├── 002_insert_demo_users.sql          # Demo data
-│   │   ├── 003_create_rls_policies.sql        # Security policies
-│   │   └── 004_create_indexes.sql             # Performance indexes
-│   ├── docs/
-│   │   └── architecture.md           # Detailed architecture documentation
-│   ├── requirements.txt              # Python dependencies
-│   ├── .env.example                  # Environment template
-│   ├── setup_supabase_auth.py        # Auth user setup
-│   └── setup_supabase_auth.sh        # Auth user setup (bash)
-│
-├── frontend/                         # Next.js React frontend
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx              # Main dashboard
-│   │   │   ├── layout.tsx            # Root layout
-│   │   │   ├── globals.css           # Global styles
-│   │   │   └── api/[[...route]]/     # API proxy routes
-│   │   └── components/
-│   │       ├── UserSelector.tsx      # User selection cards
-│   │       ├── QueryPanel.tsx        # Query execution UI
-│   │       ├── ResultGrid.tsx        # Results table
-│   │       ├── PolicyViewer.tsx      # RLS policy display
-│   │       ├── DirectQueryPanel.tsx  # Direct SQL demo
-│   │       ├── ComparisonPanel.tsx   # Multi-user comparison
-│   │       └── RLSControl.tsx        # RLS toggle
-│   ├── package.json                  # NPM dependencies
-│   ├── next.config.ts                # Next.js config
-│   ├── tailwind.config.ts            # Tailwind CSS config
-│   ├── tsconfig.json                 # TypeScript config
-│   ├── .env.example                  # Environment template
-│   ├── .env.local                    # Local environment
-│   └── README.md                     # Frontend docs
-│
-├── SETUP.md                          # Complete setup guide
-└── README.md                         # This file
+  backend/
+    app/
+      main.py                    FastAPI app setup
+      api/users.py               user endpoints
+      api/queries.py             query, compare, policy, RLS toggle, explain endpoints
+      services/user_service.py   loads demo users and builds claims
+      services/query_service.py  runs user-scoped queries
+      database/connection.py     asyncpg pool and per-query RLS context
+      schemas/models.py          Pydantic request/response models
+    migrations/
+      001_create_user_profiles.sql
+      002_insert_demo_users.sql
+      003_create_rls_policies.sql
+      004_create_indexes.sql
+    requirements.txt
 
+  frontend/
+    src/app/page.tsx
+    src/app/api/[[...route]]/route.ts
+    src/components/
+      UserSelector.tsx
+      QueryPanel.tsx
+      ResultGrid.tsx
+      ComparisonPanel.tsx
+      PolicyViewer.tsx
+      DirectQueryPanel.tsx
+      RLSControl.tsx
+    package.json
+
+  docs/
+    architecture.md
+
+  SETUP.md
+  README.md
 ```
 
-## Technology Stack
+## Stack
 
-### Backend
-- **FastAPI** - Async Python web framework
-- **asyncpg** - PostgreSQL async driver
-- **Pydantic** - Data validation
-- **Uvicorn** - ASGI application server
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Backend | FastAPI, asyncpg, Pydantic, Uvicorn |
+| Database | PostgreSQL / Supabase, Row Level Security |
 
-### Database
-- **PostgreSQL 12+** (via Supabase)
-- **Row Level Security (RLS)** - Four comprehensive policies
-- **Indexes** - Optimized for RLS policy evaluation
+No LLM API key is required. This project demonstrates database security only.
 
-### Frontend
-- **Next.js 16** - React framework
-- **React 19** - UI library
-- **Tailwind CSS 4** - Styling
-- **TypeScript** - Type safety
+## How The Demo Works
 
-## Quick Start
+1. The frontend loads demo users from the backend.
+2. A user is selected in the dashboard.
+3. The backend reads that user's profile from `user_profiles`.
+4. The backend builds a claim object containing org, role, department, ceiling level, and compliance clearance.
+5. The backend opens a PostgreSQL transaction and sets the user context for that query.
+6. PostgreSQL RLS policies filter `knowledge_nodes` before rows are returned.
+7. The UI displays only the rows that PostgreSQL allowed.
 
-### Prerequisites
-- PostgreSQL 12+ (Supabase)
-- Python 3.9+
-- Node.js 18+
+The important point: the backend does not fetch all rows and filter them in Python. PostgreSQL is the enforcement layer.
 
-### 1. Database Setup
+## What The Assessment Is Proving
 
-```bash
-# Apply migrations to Supabase database
-psql postgresql://user:password@host/database < backend/migrations/001_create_user_profiles.sql
-psql postgresql://user:password@host/database < backend/migrations/002_insert_demo_users.sql
-psql postgresql://user:password@host/database < backend/migrations/003_create_rls_policies.sql
-psql postgresql://user:password@host/database < backend/migrations/004_create_indexes.sql
+The finished demo should make three things obvious:
+
+```text
+Same SQL, different user context, different rows.
+Restricted rows are silently excluded, not returned as errors.
+Direct database access with the same user context is still filtered by RLS.
 ```
 
-### 2. Backend Setup
+Silent exclusion is important. A restricted user should not receive `403` rows, placeholders, hidden counts, or metadata that hints at protected records. They should only receive the rows they are allowed to see.
 
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
+## Claim Shape
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run server
-python -m uvicorn app.main:app --reload --port 8000
-```
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-npm install
-
-# Configure environment
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-
-# Run server
-npm run dev
-```
-
-**Access at**: http://localhost:3000
-
-## Core Demonstrations
-
-### 1. Same Query, Different Results
-
-```
-User: Priya (VIEWER, ceiling_level=10, org_id=supra)
-Query: SELECT * FROM knowledge_nodes
-Result: 28 rows
-
-User: Vikram (HOD, ceiling_level=4, org_id=supra)
-Query: SELECT * FROM knowledge_nodes
-Result: 74 rows
-
-User: Suresh (ADMIN, ceiling_level=1, org_id=supra)
-Query: SELECT * FROM knowledge_nodes
-Result: 300+ rows (all)
-```
-
-**Why different?** RLS policies enforce four security boundaries:
-
-#### 1. Organization Isolation
-- Users see ONLY rows matching their `org_id`
-- Priya (org_id='supra') cannot see rows with org_id='city_clinic'
-
-#### 2. Department Scoping
-- Users see department-specific rows
-- ADMIN bypasses department restrictions
-- Zone 2 rows are publicly accessible
-
-#### 3. Permission Ceiling
-- `hierarchy_level >= user.ceiling_level`
-- Priya (ceiling=10) sees more rows than Vikram (ceiling=4)
-- ADMIN bypasses ceiling restrictions
-
-#### 4. Compliance Filtering
-- MNPI rows visible only to users with MNPI clearance
-- CONTROLLED_SUBSTANCE rows filtered similarly
-- ADMIN bypasses compliance checks
-
-### 2. Direct Query Enforcement
-
-Try the **Direct Query** panel:
-
-```sql
-SELECT * FROM knowledge_nodes
-```
-
-Run as Priya:
-- With RLS enabled: 28 rows
-- With RLS disabled: All rows (policy enforcement gone)
-
-**Key insight**: RLS is evaluated at the database layer, not the application layer.
-
-### 3. Multi-User Comparison
-
-Click **"Compare All Users"** to see:
-
-```
-Query: SELECT * FROM knowledge_nodes
-
-Priya:      28 rows ✓ RLS enforced
-Vikram:     74 rows ✓ RLS enforced
-Suresh:    345 rows ✓ RLS enforced (ADMIN)
-Ananya:     45 rows ✓ RLS enforced
-Ravi:       52 rows ✓ RLS enforced
-CityDoctor: 18 rows ✓ RLS enforced (different org)
-```
-
-Same query. Same database. Different results. **RLS in action.**
-
-### 4. Policy Viewer
-
-See the actual PostgreSQL policy SQL:
-
-```sql
-CREATE POLICY knowledge_nodes_org_isolation ON knowledge_nodes
-  FOR SELECT
-  USING (
-    org_id = auth.jwt() ->> 'org_id'
-  );
-```
-
-These are **real database policies** that PostgreSQL evaluates for every row.
-
-### 5. RLS Toggle
-
-**WARNING: For demonstration only**
-
-- Disable RLS: All security policies removed → All rows returned
-- Enable RLS: Policies restored → Filtering re-enabled
-
-This demonstrates that security is genuinely at the database layer.
-
-## API Endpoints
-
-### Users
-```
-GET  /users                           Get all demo users
-GET  /users/{email}                   Get specific user
-```
-
-### Queries
-```
-POST /queries/query                   Execute query as user
-POST /queries/compare                 Compare results across users
-POST /queries/direct-query            Run arbitrary SQL as user
-POST /queries/policies                View active RLS policies
-POST /queries/toggle-rls              Enable/disable RLS
-POST /queries/explain                 EXPLAIN ANALYZE output
-```
-
-## Demo Users
-
-| Name | Email | Role | Org | Ceiling | Clearance |
-|------|-------|------|-----|---------|-----------|
-| Priya Sharma | priya@brahmo.supra | VIEWER | supra | 10 | - |
-| Vikram Desai | vikram@brahmo.supra | HOD | supra | 4 | - |
-| Suresh Menon | suresh@brahmo.supra | ADMIN | supra | 1 | MNPI |
-| Ananya Kapoor | ananya@brahmo.supra | EDITOR | supra | 8 | - |
-| Ravi Patel | ravi@brahmo.supra | VIEWER | supra | 12 | CONTROLLED_SUBSTANCE |
-| Dr. City Clinic | citydoctor@city.clinic | EDITOR | city_clinic | 8 | - |
-
-## Database Schema
-
-### user_profiles
-
-```sql
-CREATE TABLE user_profiles (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text UNIQUE NOT NULL,
-  full_name text NOT NULL,
-  org_id text NOT NULL,
-  role text NOT NULL,                    -- VIEWER, EDITOR, HOD, ADMIN
-  department text,
-  ceiling_level integer NOT NULL,
-  compliance_clearance text[] DEFAULT '{}',
-  created_at timestamptz DEFAULT now()
-);
-```
-
-### knowledge_nodes (Existing)
-
-Expected schema:
-```sql
-CREATE TABLE knowledge_nodes (
-  id uuid PRIMARY KEY,
-  org_id text NOT NULL,
-  title text NOT NULL,
-  content text,
-  department text,
-  zone integer DEFAULT 1,                -- 1=restricted, 2=public
-  hierarchy_level integer DEFAULT 1,
-  compliance_tags text[] DEFAULT '{}',   -- MNPI, CONTROLLED_SUBSTANCE, etc.
-  created_at timestamptz DEFAULT now()
-);
-```
-
-## RLS Policies
-
-Four independent policies enforce security:
-
-### Policy 1: Organization Isolation
-```sql
-org_id = auth.jwt() ->> 'org_id'
-```
-
-### Policy 2: Department Scoping
-```sql
-WHEN role = 'ADMIN' THEN true
-WHEN department IS NULL THEN true
-WHEN zone = 2 THEN true
-ELSE department = auth.jwt() ->> 'department'
-```
-
-### Policy 3: Permission Ceiling
-```sql
-WHEN role = 'ADMIN' THEN true
-ELSE hierarchy_level >= auth.jwt() ->> 'ceiling_level'
-```
-
-### Policy 4: Compliance Filtering
-```sql
-WHEN role = 'ADMIN' THEN true
-WHEN 'MNPI' IN compliance_tags AND 'MNPI' NOT IN user_clearances THEN false
-WHEN 'CONTROLLED_SUBSTANCE' IN compliance_tags AND no clearance THEN false
-ELSE true
-```
-
-## JWT Claim Structure
-
-Backend simulates JWT claims for demonstration:
+Each demo user is represented by a claim object like this:
 
 ```json
 {
@@ -336,87 +98,555 @@ Backend simulates JWT claims for demonstration:
 }
 ```
 
-PostgreSQL reads these via `auth.jwt()` for policy evaluation.
+The current backend derives this from the `user_profiles` table. For a production system, these claims should come from a real signed authentication token or from one consistent trusted database session context.
 
-## Performance
+## RLS Security Model
 
-### Indexes
+The protected table is `knowledge_nodes`. Rows are filtered by four security dimensions.
+
+### 1. Organization Isolation
+
+Users can only see rows for their own organization.
+
+```text
+row.org_id must match user.org_id
+```
+
+Example: a `supra` user should not see `city_clinic` rows.
+
+### 2. Department Scoping
+
+Department-specific content is limited to matching departments, unless the row is public/cross-department or the user has an admin role.
+
+```text
+row.department matches user.department
+OR row.department is null
+OR row.zone = 2
+OR user.role = ADMIN
+```
+
+### 3. Permission Ceiling
+
+Rows have a `hierarchy_level`, and users have a `ceiling_level`.
+
+```text
+row.hierarchy_level >= user.ceiling_level
+```
+
+The demo also treats some elevated roles and public-zone rows as broader visibility cases.
+
+### 4. Compliance Filtering
+
+Rows tagged with compliance labels require matching user clearances.
+
+```text
+untagged rows are visible
+tagged rows require matching compliance_clearance values
+```
+
+Example tags include `MNPI` and `CONTROLLED_SUBSTANCE`.
+
+## Important Implementation Note
+
+There are two RLS-context patterns present in the repository:
+
+| Area | Pattern |
+| --- | --- |
+| `backend/migrations/003_create_rls_policies.sql` | Supabase-style `auth.jwt()` claims |
+| Current backend runtime | transaction-local `app.current_*` settings and `SET LOCAL ROLE app_user` |
+| Current backend policy viewer | hardcoded split-policy display text |
+
+The architecture doc explains this in detail. For a production deployment, choose one pattern and make the database policies and backend runtime match exactly.
+
+For the Option A demo described in the setup guide, use the `current_setting('app.current_*')` policy pattern because the backend runtime sets those values before each query.
+
+Read: [docs/architecture.md](docs/architecture.md)
+
+## Demo Users
+
+| Name | Email | Role | Org | Department | Ceiling | Clearance |
+| --- | --- | --- | --- | --- | --- | --- |
+| Priya Sharma | priya@brahmo.supra | VIEWER | supra | ortho | 10 | none |
+| Vikram Desai | vikram@brahmo.supra | HOD | supra | ortho | 4 | none |
+| Suresh Menon | suresh@brahmo.supra | ADMIN | supra | admin | 1 | MNPI |
+| Ananya Kapoor | ananya@brahmo.supra | EDITOR | supra | medicine | 8 | none |
+| Ravi Patel | ravi@brahmo.supra | VIEWER | supra | pharmacy | 12 | CONTROLLED_SUBSTANCE |
+| Dr. City Clinic | citydoctor@city.clinic | EDITOR | city_clinic | medicine | 8 | none |
+
+## Quick Start
+
+### Prerequisites
+
+- PostgreSQL 12+ or a Supabase PostgreSQL database
+- Python 3.11+ recommended
+- Node.js 18+
+- `psql` for running migrations
+
+### 1. Prepare the Database
+
+Connect to your PostgreSQL database:
+
+```bash
+psql postgresql://user:password@host:port/database
+```
+
+Create or verify the protected table first. The repo migrations create users, policies, and indexes, but the demo also needs `knowledge_nodes` data.
+
+```sql
+CREATE TABLE IF NOT EXISTS knowledge_nodes (
+  id text PRIMARY KEY,
+  org_id text NOT NULL,
+  type text CHECK (type IN ('CONSTRAINT', 'DECISION', 'ANTI_PATTERN', 'FACT')),
+  title text NOT NULL,
+  content text,
+  hierarchy_level integer NOT NULL,
+  department text,
+  zone integer DEFAULT 1,
+  compliance_tags text[] DEFAULT '{}',
+  status text DEFAULT 'ACTIVE',
+  created_at timestamptz DEFAULT now()
+);
+```
+
+Then load data and policies in this order:
+
+1. Create `user_profiles`: `\i backend/migrations/001_create_user_profiles.sql`
+2. Insert demo users: `\i backend/migrations/002_insert_demo_users.sql`
+3. Insert the 30 `knowledge_nodes` seed rows from the setup guide.
+4. Apply the hierarchy-level normalization updates shown below.
+5. Create or verify the `app_user` database role shown below.
+6. Enable RLS and create the combined `knowledge_nodes_access` policy that reads `current_setting('app.current_*', true)`.
+7. Create indexes: `\i backend/migrations/004_create_indexes.sql`
+8. Add the `zone` index shown below.
+
+Important: seed `knowledge_nodes` before enabling RLS policies, otherwise inserts may be blocked or unexpectedly filtered.
+
+Apply these seed-data adjustments so the demo counts line up with the intended visibility examples:
+
+```sql
+UPDATE knowledge_nodes SET hierarchy_level = 10
+WHERE id IN ('S-O01','S-O02','S-O03','S-O06');
+
+UPDATE knowledge_nodes SET hierarchy_level = 8
+WHERE id IN ('S-M01', 'S-M02');
+```
+
+The backend executes user-scoped queries after `SET LOCAL ROLE app_user`, so Supabase/PostgreSQL must have that role. The backend connection role also needs permission to switch to it.
+
+```sql
+DO $$
+BEGIN
+  CREATE ROLE app_user;
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT ON knowledge_nodes TO app_user;
+
+-- Replace backend_connection_role with the actual database role used by DATABASE_URL.
+GRANT app_user TO backend_connection_role;
+```
+
+For this runtime demo, use this combined Supabase RLS policy. It keeps the four boundaries in one policy, joined by `AND`, so every returned row must pass organization, department, ceiling, and compliance checks.
+
+```sql
+ALTER TABLE knowledge_nodes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS knowledge_nodes_access ON knowledge_nodes;
+
+CREATE POLICY knowledge_nodes_access
+ON knowledge_nodes
+FOR SELECT
+USING (
+  org_id = current_setting('app.current_org_id', true)
+
+  AND
+
+  (
+    department = current_setting('app.current_department', true)
+    OR department IS NULL
+    OR zone = 2
+    OR current_setting('app.current_role', true) = 'ADMIN'
+  )
+
+  AND
+
+  (
+    hierarchy_level >= current_setting('app.current_ceiling', true)::int
+    OR current_setting('app.current_role', true) IN ('ADMIN', 'HOD')
+    OR zone = 2
+  )
+
+  AND
+
+  (
+    compliance_tags IS NULL
+    OR compliance_tags = '{}'
+    OR compliance_tags <@
+       string_to_array(
+         current_setting('app.current_clearance', true),
+         ','
+       )::text[]
+  )
+);
+```
+
+`backend/migrations/004_create_indexes.sql` creates the main RLS indexes. Add this extra index for the `zone = 2` predicate used by the active policy:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_nodes_zone
+ON knowledge_nodes(zone);
+```
+
+Verify the demo users and policies:
+
+```sql
+SELECT email, org_id, role, department, ceiling_level, compliance_clearance
+FROM user_profiles
+ORDER BY full_name;
+
+SELECT policyname, tablename, qual
+FROM pg_policies
+WHERE tablename = 'knowledge_nodes';
+```
+
+Note: `backend/migrations/003_create_rls_policies.sql` currently contains a Supabase `auth.jwt()` version of the policies. That version is useful for a real Supabase Auth setup, but the included FastAPI runtime currently simulates user context with `app.current_*` settings. Use one pattern consistently.
+
+### 2. Start the Backend
+
+From the repository root:
+
+```bash
+cd backend
+python -m venv venv
+```
+
+Activate the virtual environment.
+
+Windows PowerShell:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+macOS or Linux:
+
+```bash
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create `backend/.env` and set at least:
+
+```env
+DATABASE_URL=postgresql://user:password@host:port/database
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ENV=development
+PORT=8000
+CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+```
+
+Start FastAPI:
+
+```bash
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+Useful backend URLs:
+
+```text
+http://localhost:8000
+http://localhost:8000/health
+http://localhost:8000/docs
+```
+
+### 3. Start the Frontend
+
+Open a second terminal from the repository root:
+
+```bash
+cd frontend
+npm install
+```
+
+Create `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+Start Next.js:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+## What To Try In The UI
+
+### Scenario 1: Same Query, Multiple Users
+
+Select a user and run:
+
+```sql
+SELECT * FROM knowledge_nodes
+```
+
+Different users should receive different row counts because their claim values are different.
+
+With the 30-node setup-guide seed, expected counts are approximate:
+
+| User | Expected result |
+| --- | --- |
+| Priya | around 10 rows, no Medicine/Cardiology, no restricted Level 4 department rows, no MNPI |
+| Vikram | around 15 rows, broader Ortho/HOD visibility, no MNPI |
+| Suresh | 25 Supra rows, zero City Clinic rows |
+| Ananya | around 10 Medicine-visible rows, no MNPI |
+| City Clinic Doctor | around 4 rows, zero Supra rows |
+
+Click `Compare All Users` to run the same query across every demo user. This is the clearest proof of the RLS behavior.
+
+### Scenario 2: Silent Exclusion
+
+Inspect Priya's result set. It should look complete from her point of view:
+
+```text
+no access denied rows
+no restricted_count field
+no placeholders for hidden nodes
+no indication that Cardiology, HOD-level, MNPI, or City Clinic rows exist
+```
+
+### Scenario 3: Direct Query Enforcement
+
+Run SQL directly through the direct-query panel. RLS should still apply because enforcement happens in PostgreSQL.
+
+For a manual SQL-editor demonstration, set the user context first, then run the same query:
+
+```sql
+SELECT set_config('app.current_org_id', 'supra', true);
+SELECT set_config('app.current_role', 'VIEWER', true);
+SELECT set_config('app.current_department', 'ortho', true);
+SELECT set_config('app.current_ceiling', '10', true);
+SELECT set_config('app.current_clearance', '', true);
+
+SELECT COUNT(*), array_agg(id ORDER BY id)
+FROM knowledge_nodes;
+```
+
+Disabling RLS should show all seeded rows, which proves RLS was the enforcement mechanism:
+
+```sql
+ALTER TABLE knowledge_nodes DISABLE ROW LEVEL SECURITY;
+SELECT COUNT(*) FROM knowledge_nodes;
+ALTER TABLE knowledge_nodes ENABLE ROW LEVEL SECURITY;
+```
+
+### Scenario 4: Zone 2 Edge Case
+
+In the active Supabase policy for this project, Zone 2 rows bypass department scoping and the permission ceiling. They are still filtered by organization and compliance clearance.
+
+```text
+Priya can see allowed Zone 2 Supra globals.
+Priya should not see Zone 2 MNPI rows without clearance.
+Priya can see Zone 2 rows even when they are above her normal ceiling.
+City Clinic users should never see Supra Zone 2 rows.
+```
+
+### Policies
+
+Open the policy viewer to see the RLS conditions currently shown by the backend.
+
+### RLS Control
+
+The toggle demonstrates the impact of enabling or disabling RLS on `knowledge_nodes`.
+
+Do not expose this kind of control in a real user-facing production app.
+
+## API Reference
+
+### Users
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/users` | List demo users |
+| GET | `/users/{user_email}` | Fetch one demo user |
+
+### Queries
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/queries/query` | Run the default query as one user |
+| POST | `/queries/compare` | Run one query for all demo users |
+| POST | `/queries/direct-query` | Run caller-provided SQL as one user |
+| GET | `/queries/policies` | Show RLS policy metadata |
+| POST | `/queries/toggle-rls` | Enable or disable RLS on `knowledge_nodes` |
+| POST | `/queries/explain` | Return `EXPLAIN` output for a user-scoped query |
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/queries/query \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":\"priya@brahmo.supra\"}"
+```
+
+## Database Expectations
+
+The migrations create `user_profiles`, demo users, policies, and indexes. The protected `knowledge_nodes` table is expected to exist already.
+The setup-guide demo expects 30 rows: 25 for `supra` and 5 for `city_clinic`.
+
+Expected RLS-relevant columns:
+
+```sql
+org_id text NOT NULL,
+type text,
+title text NOT NULL,
+content text,
+department text,
+zone integer DEFAULT 1,
+hierarchy_level integer DEFAULT 1,
+compliance_tags text[] DEFAULT '{}',
+status text DEFAULT 'ACTIVE'
+```
+
+Indexes used by the RLS predicates:
+
 ```sql
 CREATE INDEX idx_nodes_org ON knowledge_nodes(org_id);
 CREATE INDEX idx_nodes_department ON knowledge_nodes(department);
+CREATE INDEX idx_nodes_zone ON knowledge_nodes(zone);
 CREATE INDEX idx_nodes_level ON knowledge_nodes(hierarchy_level);
 CREATE INDEX idx_nodes_compliance ON knowledge_nodes USING GIN(compliance_tags);
+CREATE INDEX idx_nodes_org_dept ON knowledge_nodes(org_id, department);
+CREATE INDEX idx_nodes_org_level ON knowledge_nodes(org_id, hierarchy_level);
 ```
-
-### EXPLAIN ANALYZE
-Use the Performance panel to see query plans and how RLS affects performance.
-
-## Production Readiness
-
-### ✓ Implemented
-- [x] Async FastAPI backend
-- [x] Comprehensive RLS policies
-- [x] JWT claim simulation
-- [x] Performance indexes
-- [x] Responsive React UI
-- [x] TypeScript throughout
-- [x] Error handling
-- [x] Environment configuration
-- [x] Architecture documentation
-
-### ⚠️ Before Production
-- [ ] Use real JWT tokens (not simulated)
-- [ ] Enable HTTPS/SSL
-- [ ] Configure CORS properly
-- [ ] Set up monitoring and logging
-- [ ] Regular backups
-- [ ] Query performance testing
-- [ ] Security audit
-- [ ] Load testing
-
-## Security Best Practices
-
-1. **Never disable RLS in production**
-2. **Always validate JWT claims at database layer**
-3. **Use service role key only for admin operations**
-4. **Test with multiple user contexts**
-5. **Monitor policy performance**
-6. **Keep RLS policies simple and auditable**
-7. **Rotate credentials regularly**
 
 ## Troubleshooting
 
-See [SETUP.md](SETUP.md) for detailed troubleshooting guide.
+### Backend cannot connect to the database
 
-Common issues:
-- Backend can't connect to database → Check DATABASE_URL
-- Frontend can't reach backend → Check NEXT_PUBLIC_API_URL
-- RLS not enforcing → Verify policies are created and RLS is enabled
-- Users see all rows → Check if RLS was accidentally disabled
+Check `backend/.env` and confirm `DATABASE_URL` is present and valid.
 
-## Documentation
+### Frontend says it cannot fetch from backend
 
-- [SETUP.md](SETUP.md) - Complete setup and deployment guide
-- [backend/README.md](backend/README.md) - Backend documentation
-- [backend/docs/architecture.md](backend/docs/architecture.md) - Detailed architecture
-- [frontend/README.md](frontend/README.md) - Frontend documentation
+Confirm the backend is running on port `8000`, then check `frontend/.env.local`:
 
-## Key Insight
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-This platform proves that **database-level security is fundamentally more secure than application-level security** because:
+Restart the frontend after changing `.env.local`.
 
-1. **Single source of truth** - Policies defined once in the database
-2. **Bypass prevention** - Application bugs cannot bypass RLS
-3. **Transparent enforcement** - Works with all query methods (SQL, ORM, etc.)
-4. **Audit trail** - All RLS evaluations can be logged and audited
-5. **Performance optimization** - Policies pushed down to query planner
+### `/queries/query` returns zero rows
+
+Check that `knowledge_nodes` has rows for the selected user's `org_id`, department, hierarchy level, and compliance clearance.
+
+Also check that the installed RLS policies read the same context that the backend sets:
+
+```sql
+SELECT policyname, qual
+FROM pg_policies
+WHERE tablename = 'knowledge_nodes';
+```
+
+For this demo runtime, policy conditions should reference `current_setting('app.current_org_id', true)`, `app.current_department`, `app.current_role`, `app.current_ceiling`, and `app.current_clearance`.
+
+If the backend error mentions `app_user`, confirm the role exists and the `DATABASE_URL` role can switch to it:
+
+```sql
+GRANT app_user TO backend_connection_role;
+GRANT SELECT ON knowledge_nodes TO app_user;
+```
+
+### Users can see too many rows
+
+Check that RLS is enabled:
+
+```sql
+SELECT relrowsecurity
+FROM pg_class
+WHERE relname = 'knowledge_nodes';
+```
+
+Check policies:
+
+```sql
+SELECT policyname, qual
+FROM pg_policies
+WHERE tablename = 'knowledge_nodes';
+```
+
+Also confirm the backend's runtime context pattern matches the policies installed in the database. If the policies use `auth.jwt()` but the backend sets `app.current_*`, RLS will not behave as the demo expects. See [docs/architecture.md](docs/architecture.md).
+
+### Policy viewer does not match database policies
+
+The current backend has a hardcoded policy display in `QueryService.get_rls_policies()`. Treat it as the runtime demo explanation unless you change the service to return `pg_policies` directly.
+
+## Pre-Demo Checklist
+
+Use this before showing the project:
+
+- 2 organizations loaded: 25 `supra` rows and 5 `city_clinic` rows.
+- 6 demo users loaded with different roles, departments, ceilings, and clearances.
+- RLS enabled on `knowledge_nodes`.
+- `app_user` role exists, can select `knowledge_nodes`, and the backend connection role can `SET ROLE app_user`.
+- Organization isolation verified: City Clinic sees zero Supra rows.
+- Department scoping verified: Priya sees zero Cardiology/Medicine department rows.
+- Permission ceiling verified: Priya sees zero Level 4 HOD rows.
+- Compliance filtering verified: Priya sees zero MNPI rows.
+- Zone 2 globals verified: department and ceiling bypass work, but org/compliance still apply.
+- Admin verified: admin can bypass department and ceiling within org, but not org isolation.
+- Same SQL returns different counts for multiple users.
+- Direct query path still returns filtered rows.
+- Disabling RLS returns all seeded rows.
+- Results use silent exclusion: no errors, hidden counts, or restricted-row hints.
+- Indexes exist on `org_id`, `department`, `zone`, `hierarchy_level`, and `compliance_tags`.
+
+## Common Pitfalls
+
+- Filtering rows in application code instead of PostgreSQL RLS.
+- Returning access-denied errors for hidden rows instead of silently excluding them.
+- Letting ADMIN bypass organization isolation.
+- Forgetting `department IS NULL` or `zone = 2` for hospital-wide/global rows.
+- Allowing Zone 2 to bypass organization or compliance checks.
+- Missing the GIN index for `compliance_tags`.
+- Mixing `auth.jwt()` policies with a backend that sets `app.current_*` values.
+- Testing only through the UI and never through the direct-query path.
+
+## Production Notes
+
+Before using this architecture in production:
+
+- Use real authentication and signed claims.
+- Keep the backend and database policy claim strategy consistent.
+- Do not expose arbitrary SQL execution to normal users.
+- Do not expose RLS toggling to normal users.
+- Ensure application roles do not have `BYPASSRLS`.
+- Consider `ALTER TABLE knowledge_nodes FORCE ROW LEVEL SECURITY`.
+- Add automated tests for org isolation, department scoping, ceiling checks, and compliance filtering.
+- Monitor query plans with `EXPLAIN ANALYZE`.
+
+## More Documentation
+
+- [docs/architecture.md](docs/architecture.md) - detailed architecture, RLS design, and claim flow
+- [SETUP.md](SETUP.md) - longer setup walkthrough
+- [backend/README.md](backend/README.md) - backend-focused notes
+- [frontend/README.md](frontend/README.md) - frontend starter notes
 
 ## License
 
 This project is provided for educational and demonstration purposes.
-
----
-
-**BRAHMO RLS Demonstration Platform** © 2024
-
-*Demonstrating how PostgreSQL Row Level Security enforces database-level access control that cannot be bypassed.*
